@@ -11,31 +11,31 @@ Issue
 論文の方にはUCBの最初の全部の腕の探索がなかったので勝手に入れちゃった
 regretの計算がおかしい説->t-1にして解決
 Experimentが複数の場合 -> 解決
+experimentを多くすると上界が小さくなる問題=>解決
+複数のpolicyをplotするためには？->解決
+Egreedyの変数Cはそもそもアルゴリズムはどうやって知るのか、元々知っていたら本末転倒では？ -> とりあえずなぜか知ってる設定
 
-Egreedyの変数Cはそもそもアルゴリズムはどうやって知るのか、元々知っていたら本末転倒では？
-複数のpolicyをplotするためには？
-時刻１のアームをラんダムに
-ucb全探索なしをやる
-egreedy cのlower boundを時刻毎に更新
+
+論文のと上界の数値が違いすぎ問題
+時刻１のアームをラんダムに -> read me
+
 
 """
 #%%
-import matplotlib.pyplot as plt
+
 import numpy as np
+import matplotlib.pyplot as plt
 import seaborn as sns
 from arm import Arms
 from policy import (Policy, UCBPolicy, EgreedyPolicy, ThompsonPolicy)
-
-
-
-
-
+import time
 
 
 class Bandit(object):
-    def __init__(self,ars:Arms, polic:Policy, label):
+    def __init__(self,ars:Arms, polic:Policy, l:float, label):
         self.arms = ars
         self.policy = polic
+        self.l = l
         self.label = label
         
     def reset(self):
@@ -43,13 +43,19 @@ class Bandit(object):
         
         #cost, regret
     def drift(self,x):
-        l = 1
-        b = l*x
+        b = self.l*x
         return b
+    
+    def RelativeError(self):
+        return abs((self.arms.mu_bars[0] - self.arms.mu_real[0]) / self.arms.mu_real[0] )
         
     def run(self, T:int, experiment):
         totalCost  = np.zeros((T,experiment))
         totalRegret= np.zeros((T,experiment))
+        rError = np.zeros(experiment)
+        countc = np.zeros(experiment)
+        start_time = time.perf_counter()
+        
         for e in range(experiment):
             self.reset()
             t=0
@@ -61,13 +67,15 @@ class Bandit(object):
                 r = 0
                 b = 0
                 c=0
-                print(It,Gt)
+                #print(It,Gt)
+                #print(self.arms.mu_bars)
                 #pulling It
                 if It == Gt:
                     #without incentive
                     r = np.random.normal() + self.arms.mu_real[It]
                 else:
                     #with incentive
+                    countc[e] += 1
                     c = self.arms.mu_bars[Gt] - self.arms.mu_bars[It]
                     b = self.drift(c)
                     r = np.random.normal() + self.arms.mu_real[It] + b
@@ -80,38 +88,44 @@ class Bandit(object):
                 self.arms.update_mubar(It, r, b)
 
                 if t ==0:
-                    totalCost[t, experiment-1] += c
-                    totalRegret[t,experiment-1] = self.arms.mu_real[0] - self.arms.mu_real[It]
+                    totalCost[t, e] += c
+                    totalRegret[t,e] = self.arms.mu_real[0] - self.arms.mu_real[It]
                     
                 else:
-                    totalCost[t, experiment-1] = totalCost[t-1, experiment-1] + c
-                    totalRegret[t,experiment-1] = totalRegret[t-1, experiment-1] +  self.arms.mu_real[0] - self.arms.mu_real[It]
+                    totalCost[t, e] = totalCost[t-1, e] + c
+                    totalRegret[t,e] = totalRegret[t-1, e] +  self.arms.mu_real[0] - self.arms.mu_real[It]
                     
                 t += 1
-            print(e)
-        
-        return np.mean(totalCost, axis=1), np.mean(totalRegret, axis=1)
-    
-    def plot(self, totalCost, totalRegret):
+            rError[e] = self.RelativeError()
+        end_time = time.perf_counter()
+        elapsed_time = (end_time - start_time)/experiment
+        print(self.label,"processing time :",elapsed_time)
+        return np.mean(totalCost, axis=1), np.mean(totalRegret, axis=1), np.mean(countc), np.mean(rError)
+
+    def single_plot(self, totalCost, totalRegret):
         sns.set_style('white')
         sns.set_context('talk')
         sns.set_palette('gray')
-        
+        plt.figure(figsize=(10, 10), dpi=50)
         plt.subplot(2, 1, 1)
+        
         plt.title(self.label)
         plt.plot(totalCost)
-        plt.ylim(0, 30)
+        plt.ylim(0, 5000)
         plt.ylabel(' Cost')
         plt.xlabel('Time Step')
         
         plt.subplot(2, 1, 2)
         plt.plot(totalRegret)
-        plt.ylim(0, 200)
+        plt.ylim(0, 5000)
         plt.ylabel('Regret')
         plt.xlabel('Time Step')
         sns.despine()
+        plt.savefig(self.label )
         plt.show()
-        #plt.savefig(self.label + 'png')
+        
+    
+    
     #%%
     
         
