@@ -4,6 +4,7 @@
 報酬に誘因が付く条件下で、人工データに対しUCB1policy, epsion-greedy policy, thompson samplingを実行する。
 
 #　起動方法
+
 ターミナルで以下を実行：
 ```
 python main.py
